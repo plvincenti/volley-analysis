@@ -16,18 +16,11 @@ def _ball(*segments):
         parts.append(
             pd.DataFrame({"time_s": t, "court_y": np.linspace(y0, y1, len(t)), "height": height})
         )
-    return pd.concat(parts, ignore_index=True).assign(source="detected", court_x=4.5)
+    return pd.concat(parts, ignore_index=True).assign(source="detected")
 
 
-def test_balls_on_the_neighbouring_court_are_ignored():
-    rally = _ball(
-        (0.0, 0.5, 2.0, 2.0, 1.0), (20.0, 21.0, 2.0, 16.0, 3.0), (21.0, 23.0, 16.0, 2.0, 3.0)
-    )
-    neighbour = _ball((32.0, 33.0, 16.0, 2.0, 3.0)).assign(court_x=18.0)
-    rallies = detect_rallies(pd.concat([rally, neighbour], ignore_index=True))
-
-    assert len(rallies) == 1
-    assert rallies.loc[0, "crossings"] == 2
+def test_video_without_serve_has_no_rallies():
+    assert detect_rallies(_ball((0.0, 2.0, 2.0, 16.0, 3.0))).empty
 
 
 FAR_SERVE_RALLY = [

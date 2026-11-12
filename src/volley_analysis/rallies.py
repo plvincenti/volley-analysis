@@ -22,8 +22,6 @@ from volley_analysis.court import COURT_LENGTH, FAR, NEAR, NET_Y
 # La profondeur est d'autant plus imprécise que le ballon est loin : marge plus large côté opposé.
 NEAR_MAX_Y_M = NET_Y - 1.0
 FAR_MIN_Y_M = NET_Y + 1.5
-# Notre poteau de droite est à ~10 m du bord gauche, celui du terrain voisin à ~14 m.
-MAX_COURT_X_M = 12.0
 DEPTH_SMOOTHING_DETECTIONS = 3
 SIDE_CONFIRM_DETECTIONS = 3
 MAX_UNSEEN_S = 3.0
@@ -66,13 +64,8 @@ class Crossing:
 
 
 def ball_sides(ball: pd.DataFrame) -> pd.DataFrame:
-    """Détections du ballon avec leur côté (`near`, `far`, ou vide près du filet).
-
-    Les ballons au-delà de `MAX_COURT_X_M` sont écartés : ils sont sur le terrain
-    voisin, visible en haut à droite de l'image, dont le filet prolonge le nôtre.
-    """
-    detected = ball[(ball["source"] == "detected") & (ball["court_x"] <= MAX_COURT_X_M)]
-    detected = detected.sort_values("time_s")
+    """Détections du ballon avec leur côté (`near`, `far`, ou vide près du filet)."""
+    detected = ball[ball["source"] == "detected"].sort_values("time_s")
     depth = (
         detected["court_y"]
         .rolling(DEPTH_SMOOTHING_DETECTIONS, center=True, min_periods=1)
