@@ -14,6 +14,7 @@ app = typer.Typer(help="Analyse vidéo de matchs de volley-ball.", no_args_is_he
 CALIBRATIONS_DIR = Path("data/calibrations")
 SHARED_CALIBRATION = CALIBRATIONS_DIR / "default.json"
 OUTPUTS_DIR = Path("outputs")
+CORRECTIONS_FILE = Path("data/corrections.csv")
 
 VideoArg = Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="Fichier vidéo")]
 CalibrationOpt = Annotated[
@@ -221,32 +222,105 @@ def ball(
 
 
 @app.command()
+def score(
+    videos: Annotated[
+        list[Path],
+        typer.Argument(
+            exists=True, dir_okay=False, help="Vidéos consécutives du match, dans l'ordre"
+        ),
+    ],
+    calibration: CalibrationOpt = None,
+    output_dir: Annotated[Path, typer.Option("--output-dir", "-o")] = OUTPUTS_DIR / "score",
+    start_score: Annotated[
+        str, typer.Option(help="Score Corbas-adversaire au premier échange, ex. 3-5")
+    ] = "0-0",
+    points: Annotated[int, typer.Option(help="Points pour gagner un set")] = 25,
+    deciding_points: Annotated[int, typer.Option(help="Points pour gagner le set décisif")] = 15,
+    corrections: Annotated[
+        Path,
+        typer.Option(help="Corrections manuelles des services, appliquées si le fichier existe"),
+    ] = CORRECTIONS_FILE,
+) -> None:
+    """Détecte les échanges et compte les points (le vainqueur d'un échange sert le suivant).
+
+    La trajectoire du ballon est calculée pour les vidéos qui n'en ont pas encore.
+    Les erreurs repérées dans la vidéo annotée se corrigent dans `--corrections`
+    (format décrit dans `volley_analysis/corrections.py`).
+    """
+    from volley_analysis.ball import DEFAULT_MODEL, BallDetectorConfig
+    from volley_analysis.pipeline import score_match
+    from volley_analysis.scoring import SetRules, set_summary
+
+    try:
+        corbas, opponent = (int(p) for p in start_score.split("-"))
+    except ValueError as exc:
+        raise typer.BadParameter("format attendu : 3-5", param_hint="--start-score") from exc
+
+    summary = score_match(
+        videos,
+        _load_calibration(videos[0], calibration),
+        output_dir,
+        BallDetectorConfig(model_path=DEFAULT_MODEL),
+        SetRules(points=points, deciding_set_points=deciding_points),
+        (corbas, opponent),
+        videos_root=OUTPUTS_DIR,
+        corrections_path=corrections,
+    )
+    scored = summary.scored
+    for row in scored[scored["note"] != ""].itertuples():
+        typer.echo(f"  {row.video} {row.serve_s:6.1f} s : {row.note}")
+    typer.secho(f"{len(scored)} échanges détectés", fg=typer.colors.GREEN)
+    for s in set_summary(scored).itertuples():
+        typer.echo(f"Set {s.set} : Corbas {s.corbas} - {s.adversaire} adversaire")
+    typer.echo(f"Détail des points : {summary.points_path}")
+    for path in summary.review_paths:
+        typer.echo(f"Planche de contrôle des services : {path}")
+
+
+@app.command()
 def render(
     video: VideoArg,
     output_dir: Annotated[Path | None, typer.Option("--output-dir", "-o")] = None,
     no_video: Annotated[
         bool, typer.Option("--no-video", help="Ne pas générer la vidéo annotée")
     ] = False,
+    points: Annotated[
+        Path, typer.Option(help="Score compté par `volley score`, affiché s'il existe")
+    ] = OUTPUTS_DIR / "score" / "points.csv",
 ) -> None:
     """Ré-applique le nettoyage des pistes et régénère les rendus, sans relancer la détection."""
-    from volley_analysis.pipeline import rebuild_outputs
+    import pandas as pd
 
+    from volley_analysis.pipeline import rebuild_outputs
+    from volley_analysis.scoring import ScoreTimeline
+
+    score = None
+    if points.exists():
+        scored = pd.read_csv(points)
+        scored = scored[scored["video"] == video.stem]
+        if len(scored):
+            score = ScoreTimeline(scored)
+            typer.echo(f"Score affiché : {len(scored)} échanges de {points}")
     _print_summary(
-        rebuild_outputs(video, output_dir or OUTPUTS_DIR / video.stem, render_video=not no_video)
+        rebuild_outputs(
+            video, output_dir or OUTPUTS_DIR / video.stem, render_video=not no_video, score=score
+        )
     )
 
 
 def _print_summary(summary) -> None:
     typer.secho(f"{summary.frames} images traitées", fg=typer.colors.GREEN)
-    typer.echo(f"Positions : {summary.tracks_path}")
+    if summary.tracks_path:
+        typer.echo(f"Positions : {summary.tracks_path}")
     if summary.video_path:
         typer.echo(f"Vidéo annotée : {summary.video_path}")
     for name, path in summary.heatmap_paths.items():
         typer.echo(f"Heatmap {name} : {path}")
-    typer.echo(
-        "Joueurs détectés en moyenne par image : "
-        + ", ".join(f"{side} {n:.1f}" for side, n in summary.mean_players.items())
-    )
+    if summary.mean_players:
+        typer.echo(
+            "Joueurs détectés en moyenne par image : "
+            + ", ".join(f"{side} {n:.1f}" for side, n in summary.mean_players.items())
+        )
 
 
 if __name__ == "__main__":

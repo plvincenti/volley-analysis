@@ -1,0 +1,17 @@
+video,temps,action,commentaire
+video1,0:13,ignorer,passe entre joueurs avant le début du match
+video1,2:41.5,ignorer,ballon roulé vers le serveur de Corbas pris pour un service adverse (deuxième ballon au fond)
+video1,2:41.5,service_corbas,service de Corbas après son ace de 2:29
+video1,3:55,ignorer,ballon renvoyé à Corbas après une balle sortie pris pour un service adverse
+video1,3:59,service_corbas,service de Corbas après la balle sortie
+video3,,ignorer_arbitre,l'arbitre ne désigne pas les points
+video4,,ignorer_arbitre,l'arbitre ne désigne pas les points
+video5,,ignorer_arbitre,l'arbitre ne désigne pas les points
+video2,7:25,point_corbas,attaque adverse sortie (hors champ)
+video2,8:09,point_corbas,l'adversaire ne renvoie pas la balle (tribunes au fond)
+video3,1:04,fin_set,fin du set 1 gagné 25-16 par l'adversaire
+video3,1:04.5-3:27,ignorer,pause entre les sets 1 et 2
+video2,1:37,point_corbas,point de Corbas fondu dans l'échange précédent
+video2,1:47.5,service_corbas,service de Corbas après son point de 1:37
+video2,2:35,point_corbas,point de Corbas compté à l'adversaire
+video2,3:45,point_corbas,point de Corbas compté à l'adversaire

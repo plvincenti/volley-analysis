@@ -8,6 +8,16 @@ from volley_analysis.calibration import Calibration
 from volley_analysis.court import is_in_play_area
 
 PERSON_CLASS = 0
+# Derrière la ligne de fond côté caméra, le serveur est grand et coupé par le bas de l'image.
+NEAR_SERVER_MIN_HEIGHT_PX = 200
+FRAME_EDGE_PX = 10
+
+
+def near_server_in_view(boxes: np.ndarray, frame_height: int) -> bool:
+    """Une personne en position de service côté caméra, parmi les boîtes (x1, y1, x2, y2)."""
+    cut = boxes[:, 3] >= frame_height - FRAME_EDGE_PX
+    tall = boxes[:, 3] - boxes[:, 1] >= NEAR_SERVER_MIN_HEIGHT_PX
+    return bool((cut & tall).any())
 
 
 @dataclass

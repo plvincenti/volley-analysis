@@ -6,6 +6,12 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from volley_analysis.calibration import CameraPose
+
+BALL_RADIUS_M = 0.105
+RADIUS_BIAS_PX = 1.2
+MIN_RADIUS_PX = 1.0
+
 # Smash ou service rapide : ~30 m/s, soit ~4000 px/s près de la caméra.
 MAX_SPEED_PX_S = 5000.0
 GATE_MARGIN_PX = 25.0
@@ -81,6 +87,22 @@ def clean_ball_track(detections: pd.DataFrame, fps: float) -> pd.DataFrame:
     track.loc[gaps, ["x", "y", "radius"]] = interpolated.loc[gaps]
     track.loc[gaps, "source"] = "interpolated"
     return track.reset_index()[TRACK_COLUMNS]
+
+
+def ball_positions_3d(track: pd.DataFrame, camera: CameraPose) -> pd.DataFrame:
+    """Position du ballon sur le terrain (`court_x`, `court_y`) et sa hauteur (`height`), en m.
+
+    La distance à la caméra se déduit du rayon apparent : un ballon de 10,5 cm de
+    rayon vu à `r` pixels est à `focale * 0.105 / r` mètres le long de l'axe optique.
+    VballNet estimant le rayon sur une image réduite, les petits rayons sont
+    surestimés d'environ `RADIUS_BIAS_PX`. La profondeur reste imprécise pour un
+    ballon lointain (quelques mètres), ce qui suffit pour savoir de quel côté du
+    filet il se trouve.
+    """
+    radius = np.maximum(track["radius"].to_numpy() - RADIUS_BIAS_PX, MIN_RADIUS_PX)
+    depths = camera.focal * BALL_RADIUS_M / radius
+    points = camera.backproject(track[["x", "y"]].to_numpy(), depths)
+    return track.assign(court_x=points[:, 0], court_y=points[:, 1], height=points[:, 2])
 
 
 def _short_gaps(present: np.ndarray, max_length: int) -> np.ndarray:

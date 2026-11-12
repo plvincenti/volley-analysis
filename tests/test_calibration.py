@@ -46,6 +46,24 @@ def test_rejects_too_few_points():
         _calibration({"near_left", "near_right", "far_right"})
 
 
+def test_camera_pose_is_recovered_from_the_floor_homography(camera):
+    corners = {"near_left": (0, 0), "near_right": (9, 0), "far_right": (9, 18), "far_left": (0, 18)}
+    pixels = camera.project(np.array([[x, y, 0.0] for x, y in corners.values()]))
+    calibration = Calibration(
+        image_points={name: tuple(p) for name, p in zip(corners, pixels, strict=True)},
+        frame_size=(1920, 1080),
+    )
+
+    recovered = calibration.camera()
+    assert recovered.focal == pytest.approx(camera.focal, rel=1e-6)
+    np.testing.assert_allclose(recovered.center, camera.center, atol=1e-6)
+    ball = np.array([[3.0, 12.0, 2.5]])
+    depth = (ball - recovered.center) @ recovered.rotation[2]
+    np.testing.assert_allclose(
+        recovered.backproject(recovered.project(ball), depth), ball, atol=1e-6
+    )
+
+
 def test_save_and_load_roundtrip(tmp_path):
     calibration = _calibration()
     path = tmp_path / "calib.json"

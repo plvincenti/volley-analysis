@@ -51,6 +51,32 @@ class Calibration:
         """Projette des positions terrain (N, 2) en pixels (N, 2)."""
         return _apply(np.linalg.inv(self.homography), court_xy)
 
+    def camera(self) -> "CameraPose":
+        """Pose de la caméra déduite de l'homographie du sol.
+
+        Suppose des pixels carrés et le centre optique au centre de l'image,
+        ce qui laisse la focale comme seule inconnue interne : elle est fixée
+        par l'orthogonalité des axes du terrain.
+        """
+        court_to_image = np.linalg.inv(self.homography)
+        cx, cy = self.frame_size[0] / 2, self.frame_size[1] / 2
+        h1, h2, h3 = court_to_image.T
+        a1 = np.array([h1[0] - cx * h1[2], h1[1] - cy * h1[2]])
+        a2 = np.array([h2[0] - cx * h2[2], h2[1] - cy * h2[2]])
+        focal_sq = -(a1 @ a2) / (h1[2] * h2[2])
+        if focal_sq <= 0:
+            raise ValueError("Calibration incompatible avec une caméra perspective standard")
+        focal = float(np.sqrt(focal_sq))
+
+        k_inv = np.linalg.inv(np.array([[focal, 0, cx], [0, focal, cy], [0, 0, 1]]))
+        r1, r2, t = k_inv @ h1, k_inv @ h2, k_inv @ h3
+        # L'homographie est définie au signe près : le terrain doit être devant la caméra.
+        scale = np.sign(t[2]) / np.sqrt(np.linalg.norm(r1) * np.linalg.norm(r2))
+        r1, r2, t = r1 * scale, r2 * scale, t * scale
+        u, _, vt = np.linalg.svd(np.column_stack([r1, r2, np.cross(r1, r2)]))
+        rotation = u @ vt
+        return CameraPose(focal, (cx, cy), rotation, -rotation.T @ t)
+
     def reprojection_error(self) -> float:
         """Erreur moyenne (pixels) entre les points cliqués et leur reprojection."""
         src, dst = self._point_pairs()
@@ -76,6 +102,37 @@ class Calibration:
             frame_size=(int(payload["frame_size"][0]), int(payload["frame_size"][1])),
             frame_index=int(payload.get("frame_index", 0)),
             video=payload.get("video"),
+        )
+
+
+@dataclass
+class CameraPose:
+    """Caméra perspective dans le repère du terrain (z vers le haut, en mètres)."""
+
+    focal: float
+    principal_point: tuple[float, float]
+    rotation: np.ndarray
+    center: np.ndarray
+
+    def backproject(self, pixels: np.ndarray, depths: np.ndarray) -> np.ndarray:
+        """Points 3D (N, 3) vus aux pixels (N, 2), à la profondeur `depths` le long de l'axe."""
+        pixels = np.asarray(pixels, dtype=np.float64).reshape(-1, 2)
+        cx, cy = self.principal_point
+        rays = np.column_stack(
+            [
+                (pixels[:, 0] - cx) / self.focal,
+                (pixels[:, 1] - cy) / self.focal,
+                np.ones(len(pixels)),
+            ]
+        )
+        return self.center + (rays * np.asarray(depths)[:, None]) @ self.rotation
+
+    def project(self, points: np.ndarray) -> np.ndarray:
+        """Pixels (N, 2) des points 3D (N, 3)."""
+        cam = (np.asarray(points, dtype=np.float64) - self.center) @ self.rotation.T
+        cx, cy = self.principal_point
+        return np.column_stack(
+            [self.focal * cam[:, 0] / cam[:, 2] + cx, self.focal * cam[:, 1] / cam[:, 2] + cy]
         )
 
 

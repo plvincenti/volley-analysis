@@ -1,7 +1,12 @@
 import numpy as np
 import pandas as pd
 
-from volley_analysis.ball_tracks import clean_ball_track
+from volley_analysis.ball_tracks import (
+    BALL_RADIUS_M,
+    RADIUS_BIAS_PX,
+    ball_positions_3d,
+    clean_ball_track,
+)
 
 FPS = 60
 
@@ -35,6 +40,22 @@ def test_isolated_and_distant_detections_are_rejected():
     assert track.loc[frames[20:23], "source"].ne("detected").all()
     assert (track.loc[frames[20:23], "x"] < 1000).all()
     assert track.loc[frames[:20], "source"].eq("detected").all()
+
+
+def test_ball_position_in_3d_from_apparent_radius(camera):
+    balls = np.array([[2.0, 16.0, 3.0], [7.0, 1.0, 1.0]])
+    depths = (balls - camera.center) @ camera.rotation[2]
+    pixels = camera.project(balls)
+    track = pd.DataFrame(
+        {
+            "x": pixels[:, 0],
+            "y": pixels[:, 1],
+            "radius": camera.focal * BALL_RADIUS_M / depths + RADIUS_BIAS_PX,
+        }
+    )
+
+    positions = ball_positions_3d(track, camera)
+    np.testing.assert_allclose(positions[["court_x", "court_y", "height"]], balls, atol=1e-6)
 
 
 def test_skipped_frames_and_short_gaps_are_interpolated_but_not_long_ones():

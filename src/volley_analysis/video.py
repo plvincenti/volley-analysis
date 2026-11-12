@@ -55,15 +55,23 @@ def read_frame(path: Path, index: int) -> np.ndarray:
 
 
 def iter_frames(
-    path: Path, start_frame: int = 0, end_frame: int | None = None
+    path: Path, start_frame: int = 0, end_frame: int | None = None, step: int = 1
 ) -> Iterator[tuple[int, np.ndarray]]:
-    """Itère sur (index, image BGR) de `start_frame` inclus à `end_frame` exclu."""
+    """Itère sur (index, image BGR) de `start_frame` inclus à `end_frame` exclu.
+
+    Avec `step` > 1, seule une image sur `step` est décodée.
+    """
     capture = _open(path)
     try:
         if start_frame:
             capture.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
         index = start_frame
         while end_frame is None or index < end_frame:
+            if (index - start_frame) % step:
+                if not capture.grab():
+                    break
+                index += 1
+                continue
             ok, frame = capture.read()
             if not ok:
                 break

@@ -15,6 +15,10 @@ LINE_COLOR = (0, 255, 255)
 BALL_COLOR = (0, 230, 255)
 FLOOR_COLOR = (60, 110, 170)
 COURT_LINE_COLOR = (255, 255, 255)
+SCORE_TEXT_COLOR = (255, 255, 255)
+SCORE_POINT_COLOR = (0, 230, 255)
+REFEREE_AGREE_COLOR = (80, 220, 80)
+REFEREE_DISAGREE_COLOR = (60, 60, 255)
 
 
 def draw_court_overlay(
@@ -158,6 +162,65 @@ class CourtCanvas:
         weight = (np.clip(density * 3, 0, 1) * alpha)[..., None]
         blended = image * (1 - weight) + colored * weight
         return blended.astype(np.uint8)
+
+
+def draw_caption(image: np.ndarray, lines: list[str], scale: float = 0.8) -> np.ndarray:
+    """Lignes de texte blanc sur un bandeau noir, en haut à gauche."""
+    line_height = int(32 * scale)
+    width = max(cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, scale, 2)[0][0] for line in lines)
+    cv2.rectangle(image, (0, 0), (width + 16, line_height * len(lines) + 10), (0, 0, 0), -1)
+    for i, line in enumerate(lines):
+        position = (8, line_height * (i + 1))
+        cv2.putText(
+            image, line, position, cv2.FONT_HERSHEY_SIMPLEX, scale, (255, 255, 255), 2, cv2.LINE_AA
+        )
+    return image
+
+
+def draw_scoreboard(
+    frame: np.ndarray,
+    set_number: int,
+    corbas: int,
+    opponent: int,
+    rally: int | None,
+    serving_team: str | None,
+    point_to: str | None,
+    referee: str | None = None,
+) -> np.ndarray:
+    """Tableau de score en haut à gauche : set, score, équipe au service ou point marqué.
+
+    `referee` est l'équipe désignée par l'arbitre, en rouge si elle contredit `point_to`.
+    """
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    header = f"SET {set_number}" + (f"   echange #{rally}" if rally is not None else "")
+    score = f"Corbas {corbas} - {opponent} Adversaire"
+    if point_to:
+        status, color = f"POINT {point_to}", SCORE_POINT_COLOR
+    elif serving_team:
+        status, color = f"Service : {serving_team}", SCORE_TEXT_COLOR
+    else:
+        status, color = "", SCORE_TEXT_COLOR
+
+    width = max(cv2.getTextSize(score, font, 1.3, 3)[0][0], 360) + 40
+    bottom = 212 if referee else 172
+    cv2.rectangle(frame, (12, 12), (12 + width, bottom), (0, 0, 0), -1)
+    cv2.putText(frame, header, (30, 52), font, 0.9, SCORE_TEXT_COLOR, 2, cv2.LINE_AA)
+    cv2.putText(frame, score, (30, 104), font, 1.3, SCORE_TEXT_COLOR, 3, cv2.LINE_AA)
+    cv2.putText(frame, status, (30, 152), font, 1.0, color, 2, cv2.LINE_AA)
+    if referee:
+        agrees = referee == point_to
+        referee_color = REFEREE_AGREE_COLOR if agrees else REFEREE_DISAGREE_COLOR
+        text = f"Arbitre : {referee}" + ("" if agrees else " (a verifier)")
+        cv2.putText(frame, text, (30, 196), font, 0.9, referee_color, 2, cv2.LINE_AA)
+    return frame
+
+
+def contact_sheet(tiles: list[np.ndarray], columns: int) -> np.ndarray:
+    """Assemble des vignettes de même taille en grille, ligne par ligne."""
+    blank = np.zeros_like(tiles[0])
+    tiles = tiles + [blank] * (-len(tiles) % columns)
+    rows = [np.hstack(tiles[i : i + columns]) for i in range(0, len(tiles), columns)]
+    return np.vstack(rows)
 
 
 def paste_inset(
