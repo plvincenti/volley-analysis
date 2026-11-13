@@ -5,6 +5,8 @@ Fichier CSV `video,temps,action,commentaire`, une ligne par correction :
 - `ignorer` retire l'échange affiché dans la vidéo à `temps` (celui du dernier
   service détecté avant cet instant) : ballon passé avant le match, faux service...
   Avec une période (`1:04-3:27`), retire tous les services de la période (pause).
+- `fin_echange` arrête à `temps` l'échange en cours : les ballons échangés
+  ensuite entre deux points ne comptent ni comme passages du filet ni comme gestes.
 - `fin_set` termine le set avec l'échange affiché à `temps`. Dès qu'une fin de
   set est saisie, les sets ne se terminent plus d'eux-mêmes à 25 points.
 - `service_corbas` / `service_adversaire` ajoute un service manqué à `temps`.
@@ -26,6 +28,7 @@ from volley_analysis.teams import CORBAS, OPPONENT
 IGNORE = "ignorer"
 IGNORE_REFEREE = "ignorer_arbitre"
 SET_END = "fin_set"
+RALLY_END = "fin_echange"
 SERVE_ACTIONS = {"service_corbas": CORBAS, "service_adversaire": OPPONENT}
 POINT_ACTIONS = {"point_corbas": CORBAS, "point_adversaire": OPPONENT}
 CORRECTION_COLUMNS = ["video", "temps", "action", "commentaire"]
@@ -38,6 +41,7 @@ class Corrections:
     serves: list[tuple[float, str]] = field(default_factory=list)
     points: list[tuple[float, str]] = field(default_factory=list)
     set_ends_s: list[float] = field(default_factory=list)
+    rally_ends_s: list[float] = field(default_factory=list)
     ignore_referee: bool = False
 
 
@@ -71,12 +75,14 @@ def load_corrections(path: Path | None) -> dict[str, Corrections]:
             entry.ignored_s.append(parse_time(row.temps))
         elif action == SET_END:
             entry.set_ends_s.append(parse_time(row.temps))
+        elif action == RALLY_END:
+            entry.rally_ends_s.append(parse_time(row.temps))
         elif action in SERVE_ACTIONS:
             entry.serves.append((parse_time(row.temps), SERVE_ACTIONS[action]))
         elif action in POINT_ACTIONS:
             entry.points.append((parse_time(row.temps), POINT_ACTIONS[action]))
         else:
-            actions = [IGNORE, *SERVE_ACTIONS, *POINT_ACTIONS, SET_END, IGNORE_REFEREE]
+            actions = [IGNORE, *SERVE_ACTIONS, *POINT_ACTIONS, RALLY_END, SET_END, IGNORE_REFEREE]
             expected = ", ".join(actions)
             raise ValueError(f"{path} : action inconnue « {row.action} » (attendu : {expected})")
     return corrections

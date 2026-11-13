@@ -247,6 +247,7 @@ def score(
     Les erreurs repérées dans la vidéo annotée se corrigent dans `--corrections`
     (format décrit dans `volley_analysis/corrections.py`).
     """
+    from volley_analysis.actions import action_summary
     from volley_analysis.ball import DEFAULT_MODEL, BallDetectorConfig
     from volley_analysis.pipeline import score_match
     from volley_analysis.scoring import SetRules, set_summary
@@ -273,6 +274,9 @@ def score(
     for s in set_summary(scored).itertuples():
         typer.echo(f"Set {s.set} : Corbas {s.corbas} - {s.adversaire} adversaire")
     typer.echo(f"Détail des points : {summary.points_path}")
+    typer.secho("Gestes de Corbas", fg=typer.colors.GREEN)
+    typer.echo(action_summary(summary.actions).to_string())
+    typer.echo(f"Détail des gestes : {summary.actions_path}")
     for path in summary.review_paths:
         typer.echo(f"Planche de contrôle des services : {path}")
 
@@ -287,10 +291,15 @@ def render(
     points: Annotated[
         Path, typer.Option(help="Score compté par `volley score`, affiché s'il existe")
     ] = OUTPUTS_DIR / "score" / "points.csv",
+    actions: Annotated[
+        Path,
+        typer.Option(help="Gestes de Corbas déduits par `volley score`, affichés s'ils existent"),
+    ] = OUTPUTS_DIR / "score" / "actions_corbas.csv",
 ) -> None:
     """Ré-applique le nettoyage des pistes et régénère les rendus, sans relancer la détection."""
     import pandas as pd
 
+    from volley_analysis.actions import ActionTimeline
     from volley_analysis.pipeline import rebuild_outputs
     from volley_analysis.scoring import ScoreTimeline
 
@@ -301,9 +310,20 @@ def render(
         if len(scored):
             score = ScoreTimeline(scored)
             typer.echo(f"Score affiché : {len(scored)} échanges de {points}")
+    gestures = None
+    if actions.exists():
+        rows = pd.read_csv(actions)
+        rows = rows[rows["video"] == video.stem]
+        if len(rows):
+            gestures = ActionTimeline(rows)
+            typer.echo(f"Gestes affichés : {len(rows)} de {actions}")
     _print_summary(
         rebuild_outputs(
-            video, output_dir or OUTPUTS_DIR / video.stem, render_video=not no_video, score=score
+            video,
+            output_dir or OUTPUTS_DIR / video.stem,
+            render_video=not no_video,
+            score=score,
+            actions=gestures,
         )
     )
 

@@ -8,6 +8,14 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from volley_analysis.actions import (
+    FAILED,
+    SUCCESS,
+    WINNING,
+    ActionTimeline,
+    action_label,
+    team_actions,
+)
 from volley_analysis.ball import BallDetectorConfig, detect_ball
 from volley_analysis.ball_tracks import ball_positions_3d, clean_ball_track
 from volley_analysis.calibration import Calibration
@@ -19,12 +27,16 @@ from volley_analysis.players import (
     TrackerConfig,
     near_server_in_view,
 )
-from volley_analysis.rallies import detect_rallies
+from volley_analysis.rallies import detect_rallies, net_crossings
 from volley_analysis.referee import referee_call, referee_gestures, track_referee
 from volley_analysis.render import (
     BALL_COLOR,
+    REFEREE_AGREE_COLOR,
+    REFEREE_DISAGREE_COLOR,
+    SCORE_POINT_COLOR,
     CourtCanvas,
     contact_sheet,
+    draw_action,
     draw_ball,
     draw_caption,
     draw_players,
@@ -39,6 +51,7 @@ from volley_analysis.scoring import (
     score_rallies,
 )
 from volley_analysis.teams import CORBAS, PersonDetector, side_colors
+from volley_analysis.touches import assign_players, find_touches
 from volley_analysis.tracks import clean_tracks
 from volley_analysis.video import iter_frames, probe, read_frame
 
@@ -47,6 +60,7 @@ BALL_RAW_FILE = "ball_raw.parquet"
 BALL_FILE = "ball.parquet"
 VIDEO_FILE = "annotated.mp4"
 POINTS_FILE = "points.csv"
+ACTIONS_FILE = "actions_corbas.csv"
 BALL_TRAIL_S = 0.4
 BALL_COVERAGE_MARGIN_S = 2.0
 # Les joueurs sont en place une seconde avant le service ; le serveur, juste avant la frappe.
@@ -57,6 +71,12 @@ REVIEW_AFTER_S = 1.2
 REVIEW_TILE_SIZE = (640, 360)
 REVIEW_COLUMNS = 3
 REFEREE_FILE = "referee_pose.parquet"
+ACTION_COLORS = {
+    SUCCESS: REFEREE_AGREE_COLOR,
+    WINNING: SCORE_POINT_COLOR,
+    FAILED: REFEREE_DISAGREE_COLOR,
+}
+UNKNOWN_ACTION_COLOR = (180, 180, 180)
 # La fin détectée d'un échange est souvent en retard (ballon encore suivi après le point).
 REFEREE_AFTER_SERVE_S = 2.0
 REFEREE_BEFORE_END_S = 2.0
@@ -130,6 +150,7 @@ def rebuild_outputs(
     output_dir: Path,
     render_video: bool = True,
     score: ScoreTimeline | None = None,
+    actions: ActionTimeline | None = None,
 ) -> TrackingSummary:
     """Ré-applique les nettoyages et régénère heatmaps et vidéo sans relancer les détections.
 
@@ -150,7 +171,7 @@ def rebuild_outputs(
     if df is None and ball is None:
         raise FileNotFoundError(f"Ni joueurs ni ballon suivis dans {output_dir}")
     return _build_outputs(
-        video_path, df, output_dir, start_frame, end_frame, render_video, ball, score
+        video_path, df, output_dir, start_frame, end_frame, render_video, ball, score, actions
     )
 
 
@@ -163,10 +184,13 @@ def _build_outputs(
     render_video: bool,
     ball: pd.DataFrame | None = None,
     score: ScoreTimeline | None = None,
+    actions: ActionTimeline | None = None,
 ) -> TrackingSummary:
     video_out = output_dir / VIDEO_FILE if render_video else None
     if video_out:
-        render_annotated_video(video_path, video_out, start_frame, end_frame, df, ball, score)
+        render_annotated_video(
+            video_path, video_out, start_frame, end_frame, df, ball, score, actions
+        )
     if df is None:
         return TrackingSummary(end_frame - start_frame, None, video_out, {}, {})
 
@@ -315,6 +339,10 @@ def detect_video_rallies(
     for time_s, team in corrections.points:
         if rally_at(time_s) >= 0:
             rallies.at[rally_at(time_s), "winner_override"] = team
+    for time_s in corrections.rally_ends_s:
+        if rally_at(time_s) >= 0:
+            i = rally_at(time_s)
+            rallies.at[i, "end_s"] = min(rallies.at[i, "end_s"], time_s)
     rallies["set_end"] = False
     for time_s in corrections.set_ends_s:
         if rally_at(time_s) >= 0:
@@ -338,6 +366,8 @@ class ScoreSummary:
     points_path: Path
     review_paths: list[Path]
     scored: pd.DataFrame
+    actions_path: Path
+    actions: pd.DataFrame
 
 
 def score_match(
@@ -358,9 +388,15 @@ def score_match(
     """
     persons = PersonDetector()
     corrections = load_corrections(corrections_path)
-    balls, per_video = {}, []
+    balls, touches, crossings, per_video = {}, {}, {}, []
     for video in tqdm(videos, unit="vidéo", desc="Échanges"):
         balls[video] = ensure_ball_track(video, videos_root / video.stem, ball_config)
+        crossings[video.stem] = net_crossings(ball_positions_3d(balls[video], calibration.camera()))
+        players_path = videos_root / video.stem / TRACKS_FILE
+        if players_path.exists():
+            touches[video.stem] = assign_players(
+                find_touches(balls[video]), pd.read_parquet(players_path), crossings[video.stem]
+            )
         video_corrections = corrections.get(video.stem, Corrections())
         gestures = (
             None
@@ -377,6 +413,9 @@ def score_match(
     output_dir.mkdir(parents=True, exist_ok=True)
     points_path = output_dir / POINTS_FILE
     scored.to_csv(points_path, index=False, float_format="%.2f")
+    actions = team_actions(scored, touches, CORBAS, crossings)
+    actions_path = output_dir / ACTIONS_FILE
+    actions.to_csv(actions_path, index=False, float_format="%.2f")
 
     review_paths = []
     for video in videos:
@@ -386,7 +425,7 @@ def score_match(
         path = output_dir / f"services_{video.stem}.jpg"
         cv2.imwrite(str(path), serve_review_sheet(video, rows, balls[video]))
         review_paths.append(path)
-    return ScoreSummary(points_path, review_paths, scored)
+    return ScoreSummary(points_path, review_paths, scored, actions_path, actions)
 
 
 def serve_review_sheet(video_path: Path, scored: pd.DataFrame, ball: pd.DataFrame) -> np.ndarray:
@@ -426,8 +465,10 @@ def render_annotated_video(
     players: pd.DataFrame | None = None,
     ball: pd.DataFrame | None = None,
     score: ScoreTimeline | None = None,
+    actions: ActionTimeline | None = None,
 ) -> None:
-    """Vidéo annotée : joueurs (boîtes + mini-carte), ballon (position + traînée), score."""
+    """Vidéo annotée : joueurs (boîtes + mini-carte), ballon (position + traînée), score
+    et gestes de Corbas."""
     info = probe(video_path)
     canvas = CourtCanvas()
     if players is not None:
@@ -475,6 +516,10 @@ def render_annotated_video(
                     state.point_to,
                     state.referee,
                 )
+            action = actions.at(index / info.fps) if actions is not None else None
+            if action is not None:
+                color = ACTION_COLORS.get(action[1], UNKNOWN_ACTION_COLOR)
+                out = draw_action(out, action_label(*action, CORBAS), color)
             writer.write(out)
     finally:
         writer.release()

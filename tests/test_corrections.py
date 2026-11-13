@@ -20,6 +20,7 @@ def test_corrections_are_grouped_by_video(tmp_path):
         "video3,,ignorer_arbitre,\n"
         "video3,1:04.5-3:27,ignorer,pause\n"
         "video3,1:04,fin_set,\n"
+        "video3,0:30.5,fin_echange,\n"
     )
     corrections = load_corrections(path)
 
@@ -29,6 +30,7 @@ def test_corrections_are_grouped_by_video(tmp_path):
     assert corrections["video3"].ignore_referee
     assert corrections["video3"].ignored_periods == [(64.5, 207.0)]
     assert corrections["video3"].set_ends_s == [64.0]
+    assert corrections["video3"].rally_ends_s == [30.5]
     assert not corrections["video1"].ignore_referee
     assert load_corrections(tmp_path / "absent.csv") == {}
 

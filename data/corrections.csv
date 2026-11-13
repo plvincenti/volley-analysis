@@ -15,3 +15,6 @@ video2,1:37,point_corbas,point de Corbas fondu dans l'échange précédent
 video2,1:47.5,service_corbas,service de Corbas après son point de 1:37
 video2,2:35,point_corbas,point de Corbas compté à l'adversaire
 video2,3:45,point_corbas,point de Corbas compté à l'adversaire
+video1,1:33.5,fin_echange,attaque de Corbas sortie ; ensuite le ballon circule entre deux échanges
+video2,5:30-6:10,ignorer,ballon roulé sous le filet puis jeu du terrain d'à côté ; l'adversaire gagne le point de 5:24
+video2,8:41,point_adversaire,service de Corbas sorti

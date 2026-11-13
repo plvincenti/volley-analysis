@@ -121,7 +121,22 @@ Sorties dans `outputs/score/` :
 - `points.csv` : un échange par ligne (vidéo, instant du service, côté et équipe au
   service, vainqueur, score après l'échange, set, remarques sur les incohérences) ;
 - `services_<video>.jpg` : planche de contrôle, une vignette par service avec la
-  trajectoire du ballon et le score, pour vérifier rapidement.
+  trajectoire du ballon et le score, pour vérifier rapidement ;
+- `actions_corbas.csv` : services, réceptions et attaques de Corbas avec leur résultat.
+
+Les gestes viennent des touches du ballon (`touches.py`) : un ballon qui remonte dans
+l'image, change de sens horizontalement ou accélère brusquement a été touché, par le
+joueur suivi (`volley track`) le plus proche. Après le service, les touches d'une même
+équipe forment une possession : réception, passe(s), attaque ; une touche au filet
+juste après une attaque adverse est un contre. Un passage du filet sans touche vue de
+l'équipe juste avant est une attaque non vue ; un retour à moins de 2 s du passage
+précédent est du bruit. Après le point, le ballon renvoyé au gagnant ou rattrapé par lui
+n'est pas un geste, ni rien de ce qui suit un silence de plus de 4,5 s. Près du filet,
+où les joueurs des deux camps se superposent dans l'image, une touche va au joueur du
+camp où se trouve le ballon d'après le dernier passage du filet. Un geste est réussi si l'échange
+continue, raté si c'est la dernière touche de l'équipe et qu'elle perd le point ; un
+service, une attaque ou un contre est gagnant si l'équipe marque sans retoucher le
+ballon. Sans suivi des joueurs pour une vidéo, seuls ses services sont listés, sans résultat.
 
 `volley render` affiche ensuite ce score dans `annotated.mp4` (set, score, équipe au
 service, puis « POINT … » à la fin de l'échange).
@@ -147,6 +162,8 @@ video1,2:41.5,service_corbas,service manqué
 - `service_corbas` / `service_adversaire` ajoute un service que la détection a manqué ;
 - `point_corbas` / `point_adversaire` donne le point de l'échange affiché à cet instant,
   et fait servir cette équipe à l'échange suivant ;
+- `fin_echange` arrête à cet instant l'échange en cours : les ballons échangés ensuite,
+  entre deux points, ne comptent plus comme gestes ;
 - `fin_set` termine le set avec l'échange affiché à cet instant. Dès qu'une fin de set
   est saisie, les sets ne se terminent plus d'eux-mêmes (25 points, changement de camp) ;
   un score final impossible est signalé, ce qui révèle des échanges en trop ou manqués ;

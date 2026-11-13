@@ -215,6 +215,15 @@ def draw_scoreboard(
     return frame
 
 
+def draw_action(frame: np.ndarray, text: str, color: tuple[int, int, int]) -> np.ndarray:
+    """Geste en cours dans un bandeau sous le tableau de score (texte sans accents)."""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    width = cv2.getTextSize(text, font, 1.0, 2)[0][0] + 36
+    cv2.rectangle(frame, (12, 224), (12 + width, 280), (0, 0, 0), -1)
+    cv2.putText(frame, text, (30, 263), font, 1.0, color, 2, cv2.LINE_AA)
+    return frame
+
+
 def contact_sheet(tiles: list[np.ndarray], columns: int) -> np.ndarray:
     """Assemble des vignettes de même taille en grille, ligne par ligne."""
     blank = np.zeros_like(tiles[0])

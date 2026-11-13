@@ -171,7 +171,8 @@ def detect_rallies(
     Corrections manuelles : chaque instant de `ignored_s` retire l'échange en
     cours à ce moment (dernier service avant lui) ; `ignored_periods` retire tous
     les services de chaque période `(début, fin)` ; `added_serves` ajoute des
-    services `(instant, côté du serveur)` que la détection a manqués.
+    services `(instant, côté du serveur)` que la détection a manqués. Un service
+    ajouté coupe en deux l'échange en cours, dont il reprend la fin.
     """
     sides = ball_sides(ball)
     detected_times = sides["time_s"].to_numpy()
@@ -253,18 +254,22 @@ def _apply_corrections(
         if start_s <= serve_s <= end_s
     }
     kept = [rally for i, rally in enumerate(rallies) if i not in dropped]
-    added = [
-        {
-            "serve_s": time_s,
-            "serving_side": side,
-            "crossings": 0,
-            "pause_s": np.nan,
-            "server_hold_s": np.nan,
-            "manual": True,
-            "last_crossing_s": time_s,
-        }
-        for time_s, side in added_serves
-    ]
+    kept_serves = [rally["serve_s"] for rally in kept]
+    added = []
+    for time_s, side in added_serves:
+        split = bisect_right(kept_serves, time_s) - 1
+        last_crossing_s = max(time_s, kept[split]["last_crossing_s"]) if split >= 0 else time_s
+        added.append(
+            {
+                "serve_s": time_s,
+                "serving_side": side,
+                "crossings": 0,
+                "pause_s": np.nan,
+                "server_hold_s": np.nan,
+                "manual": True,
+                "last_crossing_s": last_crossing_s,
+            }
+        )
     return sorted(kept + added, key=lambda rally: rally["serve_s"])
 
 
