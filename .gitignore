@@ -17,3 +17,9 @@ outputs/
 
 # Dépôts tiers clonés localement (modèles VballNet, etc.)
 vendor/
+
+# Revue du match (application web) et interface compilée
+data/*.db
+data/backups/
+web/node_modules/
+web/dist/

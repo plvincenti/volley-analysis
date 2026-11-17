@@ -33,7 +33,21 @@ WINNING = "gagnant"
 UNKNOWN = "inconnu"
 RESULTS = [SUCCESS, FAILED, WINNING, UNKNOWN]
 
-ACTION_COLUMNS = ["video", "rally", "set", "time_s", "action", "result", "track_id"]
+# Origine d'un geste : touche vue, service repéré, passage du filet sans touche vue,
+# réception ratée d'un ballon tombé sans être touché, ou saisie à la main.
+TOUCH, SERVED, CROSSING, UNTOUCHED, MANUAL = "touche", "service", "filet", "sans_touche", "manuel"
+
+ACTION_COLUMNS = [
+    "video",
+    "rally",
+    "set",
+    "time_s",
+    "team",
+    "action",
+    "result",
+    "track_id",
+    "origin",
+]
 
 # Le serveur ne peut retoucher le ballon qu'une fois le service passé et renvoyé.
 SERVER_SILENCE_S = 1.5
@@ -66,6 +80,7 @@ def rally_gestures(
         "team": rally["serving_team"],
         "action": SERVE,
         "track_id": -1,
+        "origin": SERVED,
         "unseen": False,
         "sent": True,
     }
@@ -81,6 +96,7 @@ def rally_gestures(
                 "team": team,
                 "track_id": touch.track_id,
                 "court_y": touch.court_y,
+                "origin": TOUCH,
                 "unseen": False,
                 "sent": False,
             }
@@ -161,6 +177,7 @@ def _add_unseen_sends(stream: list[dict], sends: list[Crossing], rally: pd.Serie
                     "team": team,
                     "track_id": -1,
                     "court_y": np.nan,
+                    "origin": CROSSING,
                     "unseen": True,
                     "sent": True,
                 }
@@ -198,7 +215,7 @@ def _without_post_point(gestures: list[dict], winner: str | None) -> list[dict]:
 
 
 def _public(gesture: dict) -> dict:
-    return {key: gesture[key] for key in ("time_s", "team", "action", "track_id")}
+    return {key: gesture[key] for key in ("time_s", "team", "action", "track_id", "origin")}
 
 
 def crossing_starts(crossings: list[Crossing], start_s: float, end_s: float) -> list[Crossing]:
@@ -214,7 +231,7 @@ def crossing_starts(crossings: list[Crossing], start_s: float, end_s: float) -> 
 
 
 def gesture_results(gestures: list[dict], winner: str | None) -> list[dict]:
-    """Résultat de chaque geste ; ajoute les réceptions ratées sans touche."""
+    """Résultat de chaque geste ; ajoute les réceptions ratées sans touche (`UNTOUCHED`)."""
     results = []
     for i, gesture in enumerate(gestures):
         team = gesture["team"]
@@ -238,6 +255,7 @@ def gesture_results(gestures: list[dict], winner: str | None) -> list[dict]:
                 "team": other(winner),
                 "action": RECEPTION,
                 "track_id": -1,
+                "origin": UNTOUCHED,
                 "result": FAILED,
             }
         )
@@ -247,10 +265,10 @@ def gesture_results(gestures: list[dict], winner: str | None) -> list[dict]:
 def team_actions(
     scored: pd.DataFrame,
     touches: dict[str, pd.DataFrame],
-    team: str,
+    team: str | None,
     crossings: dict[str, list[Crossing]] | None = None,
 ) -> pd.DataFrame:
-    """Gestes de `team`, un par ligne, avec leur résultat.
+    """Gestes de `team` (des deux équipes si None), un par ligne, avec leur résultat.
 
     `scored` vient de `scoring.score_rallies` ; `touches` donne, par vidéo, les
     touches attribuées aux joueurs (`touches.assign_players`), et `crossings` les
@@ -264,23 +282,25 @@ def team_actions(
         video_touches = touches.get(rally["video"])
         if video_touches is None:
             serve = {"time_s": rally["serve_s"], "team": rally["serving_team"], "action": SERVE}
-            results = [{**serve, "track_id": -1, "result": UNKNOWN}]
+            results = [{**serve, "track_id": -1, "origin": SERVED, "result": UNKNOWN}]
         else:
             kept = crossing_starts(
                 crossings.get(rally["video"], []), rally["serve_s"], rally["end_s"]
             )
             results = gesture_results(rally_gestures(rally, video_touches, kept), winner)
         for gesture in results:
-            if gesture["team"] == team:
+            if team is None or gesture["team"] == team:
                 rows.append(
                     [
                         rally["video"],
                         index,
                         rally["set"],
                         gesture["time_s"],
+                        gesture["team"],
                         gesture["action"],
                         gesture["result"],
                         gesture["track_id"],
+                        gesture["origin"],
                     ]
                 )
     return pd.DataFrame(rows, columns=ACTION_COLUMNS).sort_values(["rally", "time_s"])

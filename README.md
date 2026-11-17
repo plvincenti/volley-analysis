@@ -14,9 +14,10 @@ on corrige rapidement, et les corrections servent à améliorer les modèles.
 | 1 | Calibration du terrain (homographie), détection et suivi des joueurs, équipe par côté du filet, heatmaps | fait |
 | 2 | Détection et suivi du ballon (VballNet), nettoyage et interpolation des trajectoires | en cours |
 | 3a | Découpage en échanges, équipe au service, comptage des points et des sets | fait |
-| 3b | Détection des touches, classification des actions par les règles du jeu | à faire |
+| 3b | Détection des touches, classification des actions par les règles du jeu | fait |
 | 4 | Qualité des actions (notation type DataVolley), statistiques, rapport et clips | à faire |
-| 5 | Classifieur sur la pose, action spotting, outil de correction | à faire |
+| 5 | Application web de revue : correction des points et des gestes | en cours |
+| 6 | Classifieur sur la pose, action spotting, entraînés sur les corrections | à faire |
 
 ## Installation
 
@@ -171,6 +172,34 @@ video1,2:41.5,service_corbas,service manqué
 
 `volley render` fonctionne aussi sans suivi des joueurs : la vidéo n'affiche alors que
 le ballon et le score.
+
+### Revue du match dans le navigateur
+
+L'application web présente chaque échange analysé par `volley score` : la vidéo démarre
+juste avant le service, les gestes sont placés sur une frise, et l'on corrige le
+vainqueur du point, les gestes (geste, résultat, ajout, suppression) puis on valide.
+Changer le vainqueur recalcule le résultat des gestes non modifiés à la main ; le score
+et les statistiques de Corbas suivent les corrections.
+
+```bash
+pip install -e ".[web]"
+cd web && npm install && npm run build && cd ..
+
+# Importe outputs/score (points.csv, actions.csv) dans data/match.db si elle est vide,
+# puis sert l'application sur http://127.0.0.1:8000
+volley web
+# Repartir d'une nouvelle analyse (efface les corrections de la revue, après confirmation)
+volley web --reimport
+```
+
+La revue est enregistrée à chaque correction dans `data/match.db` (fichier SQLite, hors
+git) : elle survit à l'arrêt du serveur et au redémarrage de la machine. Chaque
+lancement de `volley web` en fait aussi une copie dans `data/backups/` (30 dernières) ;
+pour revenir à une copie, arrêter le serveur et la recopier sur `data/match.db`.
+
+Pour modifier l'interface (`web/src`, React + TypeScript), lancer `volley web` puis
+`npm run dev` dans `web/` : Vite recharge la page à chaque modification et transmet
+l'API et les vidéos au serveur Python.
 
 ## Conventions
 

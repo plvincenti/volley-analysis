@@ -61,6 +61,7 @@ BALL_FILE = "ball.parquet"
 VIDEO_FILE = "annotated.mp4"
 POINTS_FILE = "points.csv"
 ACTIONS_FILE = "actions_corbas.csv"
+ALL_ACTIONS_FILE = "actions.csv"
 BALL_TRAIL_S = 0.4
 BALL_COVERAGE_MARGIN_S = 2.0
 # Les joueurs sont en place une seconde avant le service ; le serveur, juste avant la frappe.
@@ -413,7 +414,9 @@ def score_match(
     output_dir.mkdir(parents=True, exist_ok=True)
     points_path = output_dir / POINTS_FILE
     scored.to_csv(points_path, index=False, float_format="%.2f")
-    actions = team_actions(scored, touches, CORBAS, crossings)
+    all_actions = team_actions(scored, touches, None, crossings)
+    all_actions.to_csv(output_dir / ALL_ACTIONS_FILE, index=False, float_format="%.2f")
+    actions = all_actions[all_actions["team"] == CORBAS]
     actions_path = output_dir / ACTIONS_FILE
     actions.to_csv(actions_path, index=False, float_format="%.2f")
 

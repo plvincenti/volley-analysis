@@ -1,0 +1,506 @@
+:root {
+  --bg: #14171c;
+  --panel: #1d2128;
+  --panel-2: #262b34;
+  --border: #343a46;
+  --text: #e6e8eb;
+  --muted: #9aa3af;
+  --corbas: #e0393e;
+  --opponent: #3b82f6;
+  --success: #22c55e;
+  --winning: #facc15;
+  --failed: #ef4444;
+  --unknown: #9ca3af;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button,
+select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+kbd {
+  font-size: 11px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.loading {
+  padding: 40px;
+  color: var(--muted);
+}
+
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.top-bar h1 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.set-scores {
+  display: flex;
+  gap: 16px;
+  color: var(--muted);
+}
+
+.progress {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.error {
+  background: #5b1d1d;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.stats-panel {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.stats {
+  border-collapse: collapse;
+}
+
+.stats th,
+.stats td {
+  padding: 3px 12px;
+  text-align: right;
+}
+
+.stats th:first-child,
+.stats td:first-child {
+  text-align: left;
+}
+
+.layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) 430px;
+}
+
+/* Liste des échanges */
+
+.rally-list {
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  padding: 8px;
+}
+
+.rally-filter {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.set-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 12px 4px 4px;
+}
+
+.rally-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px 1fr 22px 44px 14px;
+  gap: 4px;
+  align-items: center;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 3px 6px;
+  margin-bottom: 1px;
+}
+
+.rally-item.selected {
+  background: var(--panel-2);
+  border-color: var(--muted);
+}
+
+.rally-item.status-supprime {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+
+.rally-number {
+  color: var(--muted);
+}
+
+.rally-time {
+  font-size: 12px;
+}
+
+.rally-score {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.rally-status {
+  color: var(--success);
+}
+
+.winner-chip {
+  text-align: center;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.winner-Corbas {
+  color: var(--corbas);
+}
+
+.winner-Adversaire {
+  color: var(--opponent);
+}
+
+.winner-aucun {
+  color: var(--unknown);
+}
+
+/* Vidéo */
+
+.center {
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.video {
+  width: 100%;
+  max-height: 62vh;
+  background: black;
+  border-radius: 6px;
+}
+
+.timeline {
+  position: relative;
+  margin-top: 8px;
+  padding: 6px 0;
+  background: var(--panel);
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.timeline-rally {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 1px dashed var(--muted);
+  border-right: 1px dashed var(--muted);
+}
+
+.timeline-row {
+  position: relative;
+  height: 28px;
+}
+
+.timeline-team {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.timeline-marker {
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  color: #111;
+  border: none;
+}
+
+.timeline-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: white;
+  pointer-events: none;
+}
+
+.result-reussi {
+  background: var(--success);
+}
+
+.result-gagnant {
+  background: var(--winning);
+}
+
+.result-rate {
+  background: var(--failed);
+}
+
+.result-inconnu {
+  background: var(--unknown);
+}
+
+.player-options {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  color: var(--muted);
+}
+
+.player-options label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.shortcuts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 2px 16px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.shortcuts div {
+  display: flex;
+  gap: 8px;
+}
+
+.shortcuts dt {
+  min-width: 56px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.shortcuts dd {
+  margin: 0;
+}
+
+/* Panneau de l'échange */
+
+.rally-panel {
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  padding: 12px;
+  background: var(--panel);
+}
+
+.rally-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.rally-header h2 small {
+  color: var(--muted);
+  font-weight: normal;
+  font-size: 13px;
+}
+
+.rally-header p {
+  margin: 4px 0;
+  color: var(--muted);
+}
+
+.rally-header-score {
+  color: var(--text) !important;
+}
+
+.panel-block {
+  margin-top: 16px;
+}
+
+.panel-block h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.block-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.winner-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.winner-button {
+  padding: 10px;
+  font-weight: 600;
+}
+
+.winner-button.winner-Corbas.active {
+  background: var(--corbas);
+  color: white;
+}
+
+.winner-button.winner-Adversaire.active {
+  background: var(--opponent);
+  color: white;
+}
+
+.winner-button.active kbd {
+  color: white;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+.small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.gestures {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.gestures td {
+  padding: 2px 3px;
+}
+
+.gestures tr.team-Adversaire td:first-child {
+  border-left: 3px solid var(--opponent);
+}
+
+.gestures tr.team-Corbas td:first-child {
+  border-left: 3px solid var(--corbas);
+}
+
+.time-button {
+  font-variant-numeric: tabular-nums;
+  padding: 2px 6px;
+}
+
+.result-select {
+  color: #111;
+  font-weight: 600;
+  border: none;
+}
+
+.origin {
+  max-width: 120px;
+}
+
+.icon-button {
+  padding: 2px 6px;
+  color: var(--muted);
+}
+
+.add-gesture {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border);
+}
+
+.split-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.serving-team {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.serving-team .active.winner-Corbas {
+  background: var(--corbas);
+  color: white;
+}
+
+.serving-team .active.winner-Adversaire {
+  background: var(--opponent);
+  color: white;
+}
+
+.actions-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  padding: 10px;
+  font-weight: 600;
+}
+
+.danger {
+  color: #fca5a5;
+}

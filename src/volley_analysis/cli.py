@@ -328,6 +328,55 @@ def render(
     )
 
 
+@app.command()
+def web(
+    db: Annotated[Path, typer.Option(help="Base du match en cours de revue")] = Path(
+        "data/match.db"
+    ),
+    score_dir: Annotated[
+        Path, typer.Option(help="Analyse de `volley score` importée si la base est vide")
+    ] = OUTPUTS_DIR / "score",
+    videos_dir: Annotated[Path, typer.Option(help="Dossier des vidéos du match")] = Path(
+        "data/videos"
+    ),
+    reimport: Annotated[
+        bool, typer.Option("--reimport", help="Remplacer la revue par une nouvelle analyse")
+    ] = False,
+    host: str = "127.0.0.1",
+    port: int = 8000,
+) -> None:
+    """Application web de revue du match : points, gestes et leur résultat à corriger."""
+    import pandas as pd
+    import uvicorn
+
+    from volley_analysis.pipeline import ALL_ACTIONS_FILE, POINTS_FILE
+    from volley_analysis.web.app import create_app
+    from volley_analysis.web.store import Store
+
+    store = Store(db)
+    if not store.is_empty():
+        typer.echo(f"Sauvegarde de la revue : {store.backup(db.parent / 'backups')}")
+    reviewed = store.reviewed_count()
+    if reimport and reviewed:
+        typer.confirm(
+            f"{reviewed} échanges ont déjà été revus : les remplacer par la nouvelle analyse ?"
+            " (une sauvegarde vient d'être faite)",
+            abort=True,
+        )
+    if reimport or store.is_empty():
+        points = pd.read_csv(score_dir / POINTS_FILE)
+        store.import_analysis(points, pd.read_csv(score_dir / ALL_ACTIONS_FILE), videos_dir)
+        typer.echo(f"Analyse importée : {len(points)} échanges de {score_dir}")
+    static_dir = Path(__file__).resolve().parents[2] / "web" / "dist"
+    if not static_dir.exists():
+        typer.secho(
+            "Interface non compilée : lancer `npm run build` dans web/ (ou `npm run dev`)",
+            fg=typer.colors.YELLOW,
+        )
+    typer.echo(f"Revue du match : http://{host}:{port}")
+    uvicorn.run(create_app(store, static_dir), host=host, port=port)
+
+
 def _print_summary(summary) -> None:
     typer.secho(f"{summary.frames} images traitées", fg=typer.colors.GREEN)
     if summary.tracks_path:
